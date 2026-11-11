@@ -1,0 +1,26 @@
+/* metricd design tokens — library index card.
+   Gray-green paper, deep ink green, vermilion tags. No gradients, no big radii. */
+:root {
+  --paper: oklch(0.94 0.015 150);
+  --paper-raised: oklch(0.965 0.012 150);
+  --paper-deep: oklch(0.895 0.02 150);
+  --rule: oklch(0.82 0.024 150);
+  --rule-soft: oklch(0.87 0.018 150);
+  --ink: oklch(0.31 0.045 165);
+  --ink-strong: oklch(0.23 0.05 165);
+  --ink-soft: oklch(0.47 0.03 160);
+  --ink-faint: oklch(0.60 0.02 155);
+  --vermilion: oklch(0.55 0.17 30);
+  --vermilion-deep: oklch(0.45 0.16 28);
+  --vermilion-wash: oklch(0.93 0.035 35);
+  --sage: oklch(0.60 0.055 160);
+  --sage-wash: oklch(0.90 0.03 160);
+  --gold: oklch(0.70 0.10 85);
+  --gold-wash: oklch(0.93 0.045 88);
+  --ok: oklch(0.52 0.09 155);
+  --font-display: 'Spectral', 'Songti SC', 'Noto Serif CJK SC', Georgia, serif;
+  --font-body: 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --rail: 236px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --shadow-card: 0 1px 0 oklch(0.82 0.02 150 / 0.7), 0 10px 24px -22px oklch(0.3 0.04 165 / 0.55);
+}

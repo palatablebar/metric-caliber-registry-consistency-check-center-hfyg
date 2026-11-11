@@ -1,0 +1,22 @@
+"""Human-readable log templates used by app/utils/logger.py."""
+LOG_TEMPLATES = {
+    "METRIC_CREATED": "metric={metric} team={team} actor={actor}",
+    "METRIC_UPDATED": "metric={metric} fields={fields} actor={actor}",
+    "VERSION_CREATED": "metric={metric} version={version} team={team} agg={agg} grain={grain} window={window}",
+    "VERSION_DSL_REJECTED": "metric={metric} error={error}",
+    "CHECK_CREATED": "batch={batch} scope={scope} actor={actor}",
+    "CHECK_DISPATCHED": "batch={batch} task_id={task_id}",
+    "CHECK_STARTED": "batch={batch} check_id={check_id}",
+    "CHECK_FINISHED": "batch={batch} versions={versions} findings={findings} high={high} score={score}",
+    "CHECK_FAILED": "batch={batch} reason={reason}",
+    "CHECK_QUOTA_REJECTED": "user={user} used={used} quota={quota}",
+    "CHECK_LOCKED": "user={user} scope={scope}",
+    "FINDING_TRIAGED": "finding={finding} status={status} actor={actor}",
+    "IMPACT_EXPORTED": "batch={batch} rows={rows} actor={actor}",
+    "SEED_DEMO_FINISHED": "teams={teams} metrics={metrics} versions={versions} check={check}",
+    "SEED_DEMO_FAILED": "error={error}",
+    "AUDIT_WRITE_FAILED": "action={action} entity={entity_type} reason={reason}",
+    "AUDIT_RATE_LIMITED": "user_id={user_id} window_max={window_max}",
+    "LOGIN_SUCCEEDED": "email={email} role={role}",
+    "LOGIN_FAILED": "email={email} reason={reason}",
+}
