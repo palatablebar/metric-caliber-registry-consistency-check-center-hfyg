@@ -1,5 +1,5 @@
 <template>
-  <div class="gauge">
+  <div class="gauge" :class="{ 'is-partial': partial }">
     <div class="gauge-head">
       <span class="label">一致性分数</span>
       <span class="gauge-number num">{{ score }}<em>/100</em></span>
@@ -7,14 +7,17 @@
     <div class="gauge-track">
       <div class="gauge-fill" :style="{ width: `${Math.max(0, Math.min(100, score))}%` }"></div>
     </div>
-    <p class="hint mt-1">{{ verdict }}</p>
+    <p v-if="partial" class="partial-hint mt-1">
+      部分输入无法解析，分数仅按其余版本计算，不代表整体口径一致性。
+    </p>
+    <p v-else class="hint mt-1">{{ verdict }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps<{ score: number }>()
+const props = defineProps<{ score: number; partial?: boolean }>()
 
 const verdict = computed(() => {
   if (props.score >= 90) return '口径整体稳定，保持巡检节奏即可。'
@@ -26,9 +29,11 @@ const verdict = computed(() => {
 
 <style scoped>
 .gauge { border: 1px solid var(--rule); background: var(--paper-raised); padding: 14px 16px; }
+.gauge.is-partial { border-left: 3px solid var(--vermilion); }
 .gauge-head { display: flex; justify-content: space-between; align-items: baseline; }
 .gauge-number { font-family: var(--font-display); font-size: 34px; line-height: 1; color: var(--ink-strong); }
 .gauge-number em { font-style: normal; font-size: 12px; color: var(--ink-faint); margin-left: 2px; }
 .gauge-track { height: 8px; background: var(--paper-deep); border: 1px solid var(--rule-soft); margin-top: 10px; }
 .gauge-fill { height: 100%; background: var(--vermilion); transition: width 0.6s var(--ease); }
+.partial-hint { font-size: 11.5px; color: var(--vermilion-deep); line-height: 1.5; }
 </style>

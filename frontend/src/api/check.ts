@@ -1,13 +1,15 @@
-import type { CheckBatch, CheckDetail } from '../types/check'
+import type { CheckBatch, CheckDetail, CheckListResponse } from '../types/check'
 import { downloadWithAuth } from '../utils/request'
 import http from './http'
 
 export function fetchChecks() {
-  return http.get<{ items: CheckBatch[]; total: number }>('/checks?page_size=20')
+  return http.get<CheckListResponse>('/checks?page_size=20')
 }
 
 export function fetchLatestCheck() {
-  return http.get<{ check: CheckBatch | null; findings: unknown[] }>('/checks/latest')
+  return http.get<{ check: CheckDetail | null; findings: unknown[]; latest_trusted: CheckDetail | null }>(
+    '/checks/latest',
+  )
 }
 
 export function fetchCheck(checkId: number) {

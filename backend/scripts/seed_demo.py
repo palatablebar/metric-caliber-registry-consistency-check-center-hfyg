@@ -439,6 +439,9 @@ def _ensure_table_dependency(db: Session, metric: MetricDefinition, table: str) 
 
 
 def _ensure_check_batch(db: Session) -> int:
+    from app.constants.check_status import TERMINAL_STATUSES
+    from app.services.check_snapshot import build_input_snapshot
+
     check = db.scalar(select(ConsistencyCheck).where(ConsistencyCheck.batch_no == SEED_CHECK_BATCH))
     if check is None:
         check = ConsistencyCheck(
@@ -447,11 +450,14 @@ def _ensure_check_batch(db: Session) -> int:
             status="pending",
             triggered_by="seed_demo",
             summary_json={},
+            input_snapshot_json=build_input_snapshot(db, "all"),
         )
         db.add(check)
         db.commit()
         db.refresh(check)
-    if check.status != "completed":
+    # any terminal state (completed/incomplete/failed) is a finished round —
+    # re-running the seed must never recompute or duplicate its findings
+    if check.status not in TERMINAL_STATUSES:
         execute_check(check.id)
     return check.id
 

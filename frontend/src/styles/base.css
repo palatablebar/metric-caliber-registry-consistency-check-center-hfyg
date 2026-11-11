@@ -130,7 +130,11 @@ button.index-card { cursor: pointer; }
 .badge.low { color: var(--sage); background: var(--sage-wash); }
 .badge.pending, .badge.running { color: var(--gold); }
 .badge.completed { color: var(--ok); }
+.badge.incomplete { color: var(--vermilion-deep); background: var(--vermilion-wash); }
 .badge.failed { color: var(--vermilion-deep); }
+.badge.trusted { color: var(--ok); background: var(--sage-wash); }
+.badge.untrusted { color: var(--vermilion-deep); background: var(--vermilion-wash); }
+.badge.trust-pending { color: var(--gold); }
 
 .chip {
   display: inline-flex; align-items: center; gap: 4px;

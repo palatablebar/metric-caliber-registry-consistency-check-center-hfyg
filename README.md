@@ -51,7 +51,15 @@ metric active_users = count(distinct user_id) from fact_visit
 - 一致性分数 `100 × (1 − Σ各对差异权重 / (对比对数 × 12))`，权重 high=3 / medium=2 / low=1；
 - 影响面 = 反向依赖闭包（受影响指标）+ 这些指标登记的 BI 看板，随 finding 落库并可导出 CSV。
 
-批次执行链路：`POST /checks`（backend 创建 pending 批次，扣减每日检查配额，Redis 加 scope 锁）→ Celery worker `metricd.run_consistency_check` → 重新解析全部 DSL、更新版本五元组、写 `ConflictFinding` 与批次汇总 → 前端轮询显示分数/环/孤儿/冲突。
+批次执行链路：`POST /checks`（backend 创建 pending 批次，扣减每日检查配额，Redis 加 scope 锁，并在发起时**冻结输入快照**：范围内指标、版本 ID 与每份 DSL 的 SHA-256、依赖边及整批指纹）→ Celery worker `metricd.run_consistency_check` → 仅按快照中的版本重新解析、校验 DSL 哈希、更新版本五元组、写 `ConflictFinding` 与批次汇总 → 前端轮询显示分数/环/孤儿/冲突。
+
+**输入完整性与可信状态（治理硬约束）：**
+
+- 每轮检查固定使用发起时选中的指标与版本；检查期间新提交或修改的版本不属于本轮快照，绝不与本轮数据混用，需发起新一轮才纳入；
+- worker 逐份校验快照 DSL 哈希：版本缺失、期间被修改或无法解析都会被记录；范围内**任一所查版本**无法解析时，批次状态置为 `incomplete`（不完整）而非 `completed`，列出缺失指标/缺失版本/被改版本/无法解析版本，分数标记为 `score_partial`（仅按其余版本计算），`trust_status=untrusted`，不能当作正常完成发布；
+- 批次状态机为 `pending → running → completed | incomplete | failed`；状态切换用条件 UPDATE 原子领取（只有 `pending` 可领取，重复投递零行生效），终态短路，同一轮重复执行不会重复产生冲突；卡死的 `running` 批次在锁 TTL 后才可接管；
+- 只有 `completed` 批次是 `trusted`；当最新批次不完整/失败时，`GET /checks` 与 `GET /checks/latest` 仍返回 `latest_trusted`，检查页可一键回看最近可信结果；
+- 检查页展示输入是否完整、可信状态、缺失项明细、可核对的 SHA-256 输入指纹与冻结版本清单（含每份 DSL 哈希）。
 
 ## 5. 6 个页面
 

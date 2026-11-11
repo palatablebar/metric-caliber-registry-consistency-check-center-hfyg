@@ -2,7 +2,6 @@
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from app.constants.finding_status import FindingStatus
 from app.middlewares import audit_logger
 from app.models import User
 from app.schemas.check import CheckCreate, FindingTriageRequest
@@ -29,9 +28,18 @@ def create_check(request: Request, db: Session, user: User, payload: CheckCreate
 
 def latest_check(db: Session) -> dict:
     check = check_service.get_latest_check(db)
+    latest_trusted = check_service.get_latest_trusted_check(db)
     if check is None:
-        return {"check": None, "findings": []}
-    return check_service.check_detail(db, check.id, include_findings=True)
+        return {
+            "check": None,
+            "findings": [],
+            "latest_trusted": check_service.serialize_check(latest_trusted) if latest_trusted else None,
+        }
+    detail = check_service.check_detail(db, check.id, include_findings=True)
+    detail["latest_trusted"] = (
+        check_service.serialize_check(latest_trusted) if latest_trusted else None
+    )
+    return detail
 
 
 def check_detail(db: Session, check_id: int) -> dict:

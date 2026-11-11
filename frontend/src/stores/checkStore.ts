@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { createCheck, fetchCheck, fetchChecks } from '../api/check'
+import { TERMINAL_CHECK_STATUSES } from '../constants/checkStatus'
 import type { CheckBatch, CheckDetail } from '../types/check'
 import type { ApiError } from '../types/api'
 
 interface CheckState {
   batches: CheckBatch[]
   detail: CheckDetail | null
+  latestTrusted: CheckBatch | null
   loading: boolean
   running: boolean
   error: ApiError | null
@@ -15,12 +17,15 @@ export const useCheckStore = defineStore('check', {
   state: (): CheckState => ({
     batches: [],
     detail: null,
+    latestTrusted: null,
     loading: false,
     running: false,
     error: null,
   }),
   getters: {
     latest: (state): CheckBatch | null => state.batches[0] ?? null,
+    // true only while a round has not reached any terminal state
+    isTerminal: () => (status: string) => TERMINAL_CHECK_STATUSES.includes(status as never),
   },
   actions: {
     async loadBatches() {
@@ -29,6 +34,7 @@ export const useCheckStore = defineStore('check', {
       try {
         const result = await fetchChecks()
         this.batches = result.items
+        this.latestTrusted = result.latest_trusted
         const latest = result.items[0]
         if (latest) await this.loadDetail(latest.id)
       } catch (error) {
@@ -39,7 +45,9 @@ export const useCheckStore = defineStore('check', {
     },
     async loadDetail(checkId: number) {
       try {
-        this.detail = await fetchCheck(checkId)
+        const detail = await fetchCheck(checkId)
+        this.detail = detail
+        if (detail.latest_trusted) this.latestTrusted = detail.latest_trusted
       } catch (error) {
         this.error = error as ApiError
       }
@@ -57,11 +65,11 @@ export const useCheckStore = defineStore('check', {
         this.running = false
       }
     },
-    async waitFor(checkId: number, attempts = 40) {
+    async waitFor(checkId: number, attempts = 40): Promise<CheckDetail | null> {
       for (let index = 0; index < attempts; index += 1) {
         const detail = await fetchCheck(checkId)
         this.detail = detail
-        if (detail.status === 'completed' || detail.status === 'failed') return detail
+        if (TERMINAL_CHECK_STATUSES.includes(detail.status as never)) return detail
         await new Promise((resolve) => setTimeout(resolve, 700))
       }
       return null

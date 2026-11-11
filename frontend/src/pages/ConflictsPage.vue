@@ -3,7 +3,7 @@
     <PageHeader
       eyebrow="consistency checks · 口径巡检"
       title="一致性检查与冲突"
-      lede="检查批次由后端发起、Celery worker 重新解析全部 DSL 并落库；分数、环、孤儿与影响面都由 Python 算法计算。"
+      lede="每轮检查在发起时冻结所选指标、版本与依赖边（含 SHA-256 指纹），worker 只按冻结输入执行；任一所查版本无法解析即标记为不完整，不能当作正常完成发布。"
     >
       <template #actions>
         <button class="btn btn-sm btn-solid" :disabled="store.running" @click="runCheck">
@@ -34,18 +34,41 @@
           <div class="small faint mt-1">
             {{ batch.scope_label }} · 分数 {{ batch.consistency_score }} · {{ batch.conflict_count }} 条冲突
           </div>
+          <div class="mt-1">
+            <span class="badge" :class="trustBadgeClass(batch.trust_status)">{{ batch.trust_label }}</span>
+          </div>
         </button>
         <EmptyState v-if="!store.batches.length" title="还没有检查批次" hint="点击「运行一致性检查」发起第一轮巡检。" />
       </aside>
 
       <section class="stack">
+        <div v-if="showTrustedSwitch" class="trusted-switch index-card is-flat">
+          <div class="row-between">
+            <div>
+              <strong>当前最新批次结果不可信。</strong>
+              <span class="small faint">
+                上一轮可信批次 <span class="mono">{{ store.latestTrusted?.batch_no }}</span>
+                （分数 {{ store.latestTrusted?.consistency_score }}）仍可查看。
+              </span>
+            </div>
+            <button class="btn btn-sm" @click="viewLatestTrusted">查看最近可信结果</button>
+          </div>
+        </div>
+
+        <CheckIntegrityCard :check="store.detail" />
+
         <div class="grid-summary">
-          <ScoreGauge :score="store.detail.consistency_score" />
+          <ScoreGauge :score="store.detail.consistency_score" :partial="isPartial" />
           <div class="index-card is-flat summary-card">
             <div class="eyebrow">batch summary</div>
             <div class="row-between mt-1">
               <h3 class="card-title">{{ store.detail.batch_no }}</h3>
-              <StatusBadge :status="store.detail.status" :label="store.detail.status_label" />
+              <div class="row" style="gap: 6px">
+                <StatusBadge :status="store.detail.status" :label="store.detail.status_label" />
+                <span class="badge" :class="trustBadgeClass(store.detail.trust_status)">
+                  {{ store.detail.trust_label }}
+                </span>
+              </div>
             </div>
             <div class="card-rule"></div>
             <dl class="summary-facts">
@@ -69,11 +92,11 @@
         <section>
           <SectionHeading eyebrow="findings" title="冲突明细（五元组差异）">
             <template #actions>
-              <span class="faint small">按严重度排序 · 点击影响面展开</span>
+              <span class="faint small">{{ isPartial ? '结果不完整，以下为可解析版本间的冲突' : '按严重度排序 · 点击影响面展开' }}</span>
             </template>
           </SectionHeading>
           <ConflictTable
-            :findings="store.detail.findings"
+            :findings="store.detail.findings ?? []"
             :can-triage="auth.isAdmin"
             @triage="triage"
           />
@@ -100,9 +123,14 @@
               </div>
             </div>
             <div class="mt-2" v-if="store.detail.summary.parse_failed?.length">
-              <div class="label">解析失败版本</div>
+              <div class="label">解析失败 / 缺失版本</div>
               <ul class="clean-list mt-1">
-                <li v-for="item in store.detail.summary.parse_failed" :key="`${item.metric_key}-${item.version_no}`" class="small">
+                <li
+                  v-for="(item, index) in store.detail.summary.parse_failed"
+                  :key="`${item.metric_key}-${item.version_no}-${index}`"
+                  class="small"
+                >
+                  <span class="badge untrusted">{{ item.kind ?? 'unparseable' }}</span>
                   {{ item.metric_key }} v{{ item.version_no }}：{{ item.error }}
                 </li>
               </ul>
@@ -128,6 +156,7 @@
             </div>
             <p class="hint mt-2">
               分数 = 100 × (1 − Σ各对差异加权 / (对比对数 × 12))；grain/filter/agg 权重 3，window 2，measure 1。
+              <template v-if="isPartial">不完整批次的分数仅覆盖成功解析的版本，不可作为发布依据。</template>
             </p>
           </div>
         </section>
@@ -139,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import PageHeader from '../components/common/PageHeader.vue'
 import SectionHeading from '../components/common/SectionHeading.vue'
 import StatusBadge from '../components/common/StatusBadge.vue'
@@ -148,16 +177,33 @@ import ErrorNotice from '../components/common/ErrorNotice.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import ScoreGauge from '../components/check/ScoreGauge.vue'
 import ConflictTable from '../components/check/ConflictTable.vue'
+import CheckIntegrityCard from '../components/check/CheckIntegrityCard.vue'
 import { useCheckStore } from '../stores/checkStore'
 import { useAuthStore } from '../stores/authStore'
 import { downloadImpactCsv, triageFinding } from '../api/check'
 import { formatDateTime } from '../utils/formatters'
 import type { ApiError } from '../types/api'
+import type { TrustStatus } from '../types/check'
 
 const store = useCheckStore()
 const auth = useAuthStore()
 
 onMounted(() => void store.loadBatches())
+
+const isPartial = computed(() => store.detail?.status === 'incomplete')
+const showTrustedSwitch = computed(
+  () =>
+    !!store.latestTrusted &&
+    !!store.detail &&
+    store.detail.trust_status !== 'trusted' &&
+    store.latestTrusted.id !== store.detail.id,
+)
+
+function trustBadgeClass(status: TrustStatus) {
+  if (status === 'trusted') return 'trusted'
+  if (status === 'untrusted') return 'untrusted'
+  return 'trust-pending'
+}
 
 async function runCheck() {
   await store.runCheck('all')
@@ -165,6 +211,10 @@ async function runCheck() {
 
 async function selectBatch(checkId: number) {
   await store.loadDetail(checkId)
+}
+
+async function viewLatestTrusted() {
+  if (store.latestTrusted) await store.loadDetail(store.latestTrusted.id)
 }
 
 async function triage(findingId: number, status: string) {
@@ -196,6 +246,7 @@ async function downloadCsv() {
 }
 .batch-item:hover { background: var(--paper-raised); border-left-color: var(--sage); }
 .batch-item.active { background: var(--paper-raised); border-left-color: var(--vermilion); border-color: var(--rule); }
+.trusted-switch { border-left-color: var(--vermilion); }
 .grid-summary { display: grid; grid-template-columns: minmax(200px, 0.7fr) minmax(0, 1.3fr); gap: 16px; }
 .summary-facts { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 18px; font-size: 11.5px; }
 .summary-facts > div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dotted var(--rule-soft); padding-bottom: 3px; }
